@@ -1,10 +1,26 @@
-#include <GLFW/glfw3.h>
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 
 #include <iostream>
 
 const int SCR_WIDTH = 800;
 const int SCR_HEIGHT = 600;
+
+const char *vertexShaderSource =
+    "#version 330 core\n"
+    "layout(location = 0) in vec3 aPos;\n"
+
+    "void main(){\n"
+    "gl_Position = vec4(aPos.x,aPos.y,aPos.z,1.0);\n"
+    "}\n";
+
+const char *fragmentShaderSource =
+    "#version 330 core\n"
+    "out vec4 FragColor;\n"
+
+    "void main(){\n"
+    "FragColor = vec4(1.0f,0.5f,0.2f,1.0f);\n"
+    "}\n";
 
 void processInput(GLFWwindow *window);
 
@@ -19,9 +35,9 @@ int main() {
 #endif
 
   GLFWwindow *window =
-      glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "1", nullptr, nullptr);
+      glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "2", nullptr, nullptr);
   if (!window) {
-    std::cerr << "GLFWwindow initialize failed" << std::endl;
+    std::cerr << "Failed to create GLFW window" << std::endl;
     glfwTerminate();
     return EXIT_FAILURE;
   }
@@ -43,17 +59,93 @@ int main() {
     return EXIT_FAILURE;
   }
 
+  // -----------------------------------
+
+  unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+  glCompileShader(vertexShader);
+
+  int success;
+  char info_log[512];
+  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(vertexShader, 512, nullptr, info_log);
+    std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n"
+              << info_log << std::endl;
+  }
+
+  unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
+  glCompileShader(fragmentShader);
+  glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(fragmentShader, 512, NULL, info_log);
+    std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n"
+              << info_log << std::endl;
+  }
+
+  unsigned int shaderProgram = glCreateProgram();
+  glAttachShader(shaderProgram, vertexShader);
+  glAttachShader(shaderProgram, fragmentShader);
+  glLinkProgram(shaderProgram);
+  glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+  if (!success) {
+    glGetProgramInfoLog(shaderProgram, 512, NULL, info_log);
+    std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n"
+              << info_log << std::endl;
+  }
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
+
+  // -----------------------------------
+
+  float vertices[] = {
+      -0.5f, -0.5f, 0.0f,  // left
+      0.5f,  -0.5f, 0.0f,  // right
+      0.0f,  0.5f,  0.0f   // top
+  };
+
+  unsigned int VBO, VAO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+
+  glBindVertexArray(VAO);
+
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(0);
+
+  // 解绑
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+
   // 简单的渲染循环
   while (!glfwWindowShouldClose(window)) {
     processInput(window);
     // glClearColor函数是一个状态设置函数，设置应该清除成什么颜色
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    // --------------------------
+    glUseProgram(shaderProgram);
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    // --------------------------
+
     // 交换双缓冲
     glfwSwapBuffers(window);
     // 检查有没有触发键盘鼠标的事件
     glfwPollEvents();
   }
+
+  // --------------------------
+  glDeleteVertexArrays(1, &VAO);
+  glDeleteBuffers(1, &VBO);
+  glDeleteProgram(shaderProgram);
+  // --------------------------
 
   glfwTerminate();
   return EXIT_SUCCESS;
